@@ -1,12 +1,15 @@
 # Wrapper
 
-new_room <- function(grid, radiator_grid, radiator_power, windows_grids){
+new_room <- function(grid, radiator_grid, radiator_power, thermostat,
+                     windows_grids, doors_grids){
   structure(.Data = grid,
+            dim,
             radiator_grid,
             radiator_power,
+            thermostat,
             radiator_state = "open",
             windows_grids,
-            windows_state = "closed")
+            doors_grids)
 }
 
 # Validator
@@ -30,17 +33,32 @@ validate_new_room <- function(room){
   if(!all(unlist(attr(room, "windows_grids")) %in% attr(room, "grid")))
     stop("Windows are not inside the room.")
   
-  if(attr(room, "power") < 0)
+  if(attr(room, "radiator_power") < 0)
     stop("Power < 0.")
   
-  radiator
+  if(!(attr(room, "thermostat") %in% 20:24))
+    stop("Thermostat must be set to temperature between 20°C and 24°C.")
+  
+  doors_error <- sapply(1:length(attr(room, "doors_grids")), function(i){
+    if(all(dim(attr(room, "doors_grids")[[i]]) != 1))
+      paste0("Door ", i, " must be placed horizontaly or verticaly.")
+    else NULL
+  })
+  
+  if(!is.null(doors_error))
+    stop(paste0(doors_error, collapse = "\n"))
+  
+  room
 }
 
 # Constructor
 
-room <- function(coords, radiator_coords, radiator_power, windows_coords, h){
+room <- function(coords, radiator_coords, radiator_power, thermostat,
+                 windows_coords, doors_coords, h){
   grid <- list(x = seq(coords[["x"]][1], coords[["x"]][2], by = h),
                y = seq(coords[["y"]][1], coords[["y"]][2], by = h))
+  
+  dim <- c(length(grid)[["x"]], length(grid)[["y"]])
   
   radiator_grid <- list(
     x = ifelse(length(radiator_coords[["x"]]) == 1,
@@ -64,7 +82,8 @@ room <- function(coords, radiator_coords, radiator_power, windows_coords, h){
       )
     }, simplify = FALSE)
   
-  validate_new_room(new_room(grid, radiator_grid, radiator_power, windows_grid))
+  validate_new_room(new_room(grid, dim, radiator_grid, radiator_power,
+                             windows_grid, thermostat))
 }
 
 ###############################
@@ -97,19 +116,18 @@ change_radiator_state <- function(room){
   room
 }
 
-change_windows_state <- function(room){
-  attr(room, "windows_state") <- ifelse(attr(room, "windows_state") == "open",
-                                         "closed",
-                                         "open")
+add_initial_temperature <- function(room, outside_temperature, time_length){
+  attr(room, "temperature") <-
+    array(dim = c(attr(room, "dim")[2:1], time_length))
   
-  print(paste0("Windows are now", attr(room, "windows_state")))
+  attr(room, "temperature")[,,1] <- 0.3*outside_temperature + 14
   
   room
 }
 
-get_radiator_temperature_change <- function(room){
+get_radiator_temperature_change <- function(room, step){
   if(is.null(attr(room, "temperature")))
-    stop("First add temperature by creating home.")
+    stop("First add inital temperature by creating home.")
   
   if(attr(room, "radiator_state") == "open"){
     area <- ifelse(
@@ -120,7 +138,7 @@ get_radiator_temperature_change <- function(room){
         min(attr(room, "radiator_grid")[["x"]])
     )
     
-    density <- 1013.25/(attr(room, "temperature")*287.05)
+    density <- 1013.25/((attr(room, "temperature")[,,step] + 273.15)*287.05)
     
     radiator_fun <- function(x, y, room, area, density){
       if(x %in% attr(room, "radiator_grid")[["x"]] &
@@ -133,4 +151,8 @@ get_radiator_temperature_change <- function(room){
           density = density)
   } else matrix(0, nrow = length(attr(room, "grid")[["y"]]),
                 ncol = length(attr(room, "grid")[["x"]]))
+}
+
+add_temperature <- function(room, temperature, step){
+  attr(room, "temperature")[,,step] <- temperature
 }
