@@ -111,15 +111,26 @@ get_radiator_temperature_change <- function(room){
   if(is.null(attr(room, "temperature")))
     stop("First add temperature by creating home.")
   
-  area <- ifelse(
-    length(attr(room, "radiator_grid")[["x"]]) == 1,
-    max(attr(room, "radiator_grid")[["y"]]) - 
-      min(attr(room, "radiator_grid")[["y"]]),
-    max(attr(room, "radiator_grid")[["x"]]) - 
-      min(attr(room, "radiator_grid")[["x"]])
+  if(attr(room, "radiator_state") == "open"){
+    area <- ifelse(
+      length(attr(room, "radiator_grid")[["x"]]) == 1,
+      max(attr(room, "radiator_grid")[["y"]]) - 
+        min(attr(room, "radiator_grid")[["y"]]),
+      max(attr(room, "radiator_grid")[["x"]]) - 
+        min(attr(room, "radiator_grid")[["x"]])
     )
-  
-  density <- 1013.25/(attr(room, "temperature")*287.05)
-  
-  attr(room, "radiator_power")/(area * density)
+    
+    density <- 1013.25/(attr(room, "temperature")*287.05)
+    
+    radiator_fun <- function(x, y, room, area, density){
+      if(x %in% attr(room, "radiator_grid")[["x"]] &
+         y %in% attr(room, "radiator_grid")[["y"]])
+        attr(room, "radiator_power")/(area*density*1.005)
+      else 0
+    }
+    
+    outer(x, y, Vectorize(radiator_fun), room = room, area = area,
+          density = density)
+  } else matrix(0, nrow = length(attr(room, "grid")[["y"]]),
+                ncol = length(attr(room, "grid")[["x"]]))
 }
