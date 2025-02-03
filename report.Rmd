@@ -1,0 +1,131 @@
+---
+title: "Modelowanie zmian temperatury w domu"
+author: "Joanna Pokora"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+\newpage
+
+## 1. Wstęp
+
+Celem projektu jest zbadanie zmian temperatury w domu w celu optymalizacji jego ogrzewania, biorąc pod uwagę dwa problemy badawcze. W szczególności, dla każdego z nich przyjmujemy osobne założenia dotyczące wyglądu domu, badanego czasu, temperatur zewnętrznych.
+
+## 2. Ogólne założenia
+
+Przyjmujemy ogólne założenia o modelowanym świecie, prawdziwe dla obu problemów:
+
+* grzejniki mają moc 684 W ([link do źródła](https://www.leroymerlin.pl/produkty/grzejnik-c22-60x40-cm-bialy-b-684w-roz-55cm-10-bar-purmo-42385336.html?utm_source=google&utm_medium=cpc&utm_channel=performance&channel_details=pmax&utm_campaign=pmax_ogrzewanie_i_wentylacja_bigshopper&gad_source=1&gclid=CjwKCAiAqfe8BhBwEiwAsne6gdHURlmPTqmU3qLlpQ8norc8bIOqfu8nRU3dRnF_fViBkqgMwYikABoCAY8QAvD_BwE&gclsrc=aw.ds));
+* jedną jednostką czasu jest godzina;
+* przyjmujemy krok czasu $h_t=0.02 = 72$ sekundy;
+* wszystkie wymiary podawane są w metrach;
+* każdy dom dzielimy na siatkę kwadratów o bokach 0.1 m;
+* początkowa temperatura w każdym pokoju jest taka sama jak temperatura zewnętrzna;
+* temperatura okien jest równa temperaturze zewnętrznej;
+* temperatura ściany jest taka sama jak temperatura powietrza w miejscu ich zetknięcia się;
+* ciepło nie przechodzi do drugiego pokoju przez ścianę;
+* pole wszystkich grzejników jest takie same, równe $0.1\text{ m}^2$ (wymiary $0.5\times0.2$ m);
+* każdy grzejnik ma termostat ustawiony na temperaturę $S_i$ dla $i$-tego grzejnika;
+* przejścia prowadzące z jednego pokoju do drugiego są otwarte.
+
+Każdy dom chcemy podzielić na siatkę kwadratów o boku 0.1 m. Przyjmujemy, że
+
+* wszystkie ściany zewnętrzne oraz okna mają grubość jednej komórki (0.1 m);
+* ściany wewnętrzne oraz drzwi mają grubość dwóch kwadratów (po jednym dla każego z dwóch pokoi które łączą).
+
+## 3. Problem 1: umiejscowienie grzejnika
+
+Chcemy porównać jak zachowuje się temperatura w pomieszczeniu gdy kaloryfer znajduje się pod oknami z sytuacją w której jest on umiejscowiony na przeciwko okien. W tym celu przyjmujemy, że mamy do czynienia z domem jednopokojowym o wymiarach 2.5 m na 4 m, podzielonym na kwadraty o długości boku 0.1 m. Jest on wzorowany na pokoju w akademiku.
+
+oniżej znajdują się poglądowe szkice domu w obu przypadkach, z zachowanymi proporcjami. Niebieskim kolorem oznaczone zostały okna, natomiast czerwonym - grzejnik.
+
+```{r, echo=FALSE,out.width="49%", out.height="30%",fig.show='hold',fig.align='center'}
+knitr::include_graphics(c("images/problem1_house1.pdf","images/problem1_house2.pdf"))
+```
+
+Jako temperatury zewnętrzne przyjmujemy w tym przypadku temperatury od 1.04.2024 o północy do 8.04.2024 o północy, mierzone co godzinę; to znaczy, mamy 169 pomiarów, z czego 168 pochodzi z 7 dni ([link do źródła](http://meteo.ftj.agh.edu.pl/archivalData?%2FarchivalData)). Temperatury te zostały przedstawione na poniższym wykresie.
+
+```{r, echo=FALSE,out.width="70%", out.height="70%",fig.show='hold',fig.align='center'}
+knitr::include_graphics(c("plots/temperatures.png"))
+```
+
+Zakładamy, że kaloryfer jest cały czas otwarty, a termostat ustawiony jest na $22^\circ C$.
+
+## 4. Problem 2: wyłączanie grzejników przed wyjściem z domu
+
+Chcemy dowiedzieć się, czy zakręcanie grzejników przed wyjściem z domu jest optymalne. Tym razem bierzemy pod uwagę pięciopokojowy dom mieszczący się w kwadracie $8\times10$ m, którego schemat został przedstawiony poniżej.
+
+```{r, echo=FALSE,out.width="70%", out.height="70%",fig.show='hold',fig.align='center'}
+knitr::include_graphics(c("images/problem2.pdf"))
+```
+
+Badamy temperaturę w ciągu 24 godzin. Bedzięmy rozważać 6 przypadków:
+
+* temperatura zewnętrzna stała, równa 0, 8 lub $15^\circ C$;
+* grzejniki wyłączane o godzinie 7 i włączane o 17 lub grzejące cały czas.
+
+## 5. Zagadnienie przewodnictwa cieplnego i schemat numeryczny
+
+Niech $R_i$, $W_i$, $V_i$, $D_i$ oznaczają kolejno $i$-ty pokój, okno, ścianę oraz drzwi. Rozpatrywane przez nas zagadnienie przewodnictwa cieplnego na obszarze $\Omega\subset\mathbb{R}^2$ reprezentującym dom ma postać
+
+$$\begin{cases} u_t=\alpha\Delta u+f_i(x,u), & x\in R_i,\;t>0,\;i\in\{1,...,N_{rooms}\} \\ u = T_{out}(t), & x\in W_i,\;t>0,\;i\in\{1,...,N_{windows}\} \\ \nabla u\cdot n=0, & x\in V_i,\;t>0,\;i\in\{1,...,N_{walls}\} \\ u=\frac{1}{|D_i|}\int_{D_i}u\;dx, & x\in D_i,\;t>0,\;i\in\{1,...,N_{doors}\} \\ u(x,0)=T_{out}(0), & x\in\Omega. \end{cases}$$
+
+Doprecyzujmy powyższe równania oraz dopasujmy je do naszych założeń.
+
+1. $u(x,t)$ to temperatura wyrażona w Kelwinach w punkcie x i czasie t. W celu uproszczenia odczytu wyników, ostateczna temperatura podawana będzie w stopniach Celsjusza, to znaczy już po przeskalowaniu.
+2. $\alpha=0.07704$ jest współczynnikiem dyfuzjności cieplnej (przeskalowanym na godziny) ([link do źródła](https://home.agh.edu.pl/~siwek/Maszyny_I_Urzadzenia_Energetyczne_2017/Z.5.%20Turbiny%20Gazowe/Tablice%20powietrze.pdf)).
+3. $f_i(x,u)=\frac{P\cdot3600}{|A_i|\rho c}\mathbb{I}_{\{x\in A_i\}}\mathbb{I}_{\{1/|A_i|\int_{A_i}u(x,t)dx\leq S_i\}}$ to zmiana temperatury przez ogrzewanie grzejnikiem, gdzie $P=684$ W jest mocą grzejnika. Ponieważ założyliśmy mierzenie czasu w godzinach, to moc jest skalowana aby zachować odpowiednie proporcje. Zakładamy, że gęstość powietrza $\rho$ oraz ciepło właściwe $c$ są stale równe kolejno 1.205 i 1005 ([link do źródła](https://home.agh.edu.pl/~siwek/Maszyny_I_Urzadzenia_Energetyczne_2017/Z.5.%20Turbiny%20Gazowe/Tablice%20powietrze.pdf)). $|A_i|=0.1$ jest polem grzejnika. Jednocześnie realizujemy w tym miejscu założenia o istnieniu termostatu oraz produkcji ciepła tylko w miejscu znajdowania się grzejnika. W tym momencie należy zaznaczyć, że ponieważ ciepło jest produkowane na małym obszarze oraz nie robimy założenia co do maksymalnej możliwej temperatury grzejnika, to w okolicach kaloryferów temperatury mogą osiągać wysokie wartości, nie obserwowane w rzeczywistości.
+4.$T_{out}(t)$ to temperatura zewnętrzna w momencie $t$.
+5. Drugie równanie jest warunkiem brzegowym dla okien. Ich temperatura będzie stale równa temperaturze zewnętrznej.
+6. Równanie trzecie jest warunkiem brzegowym "dla ścian". Jest to warunek Neumanna.
+
+Będziemy również posługiwać się funkcją zliczającą ciepło wydzielone podczas
+eksperymentu postaci
+
+$$\Psi(t)=\int_0^t\int_\Omega f(x,u(x,s))\;dx\;ds.$$
+
+Ponieważ tak na prawdę wykonujemy obliczenia w przestrzeni dyskretnej, to dla $i$-tego grzejnika możemy zapisać
+
+$$\Psi(t)=\sum_{s=0}^tf(x,u(x,s))\cdot|A_1|.$$
+
+Główne zagadnienie będziemy rozwiązywać przy pomocy schematu numerycznego
+
+$$u(x,y,t+1)=u(x,y,t)+\frac{h_t}{h^2}(u(x+h,y,t)+u(x-h,y,t)+u(x,y+h,t)+u(x,y-h,t)-4u(x,y,t))+h_tf_i(x,u).$$
+
+Temperaturę w komórce brzegowej będącą ściana przyjmujemy taką, jak w znajdującej się tuż obok niej komórce pokoju. Jeśli kwadrat znajduje się w rogu, to jego temperatura będzie taka sama jak ta w otaczających go trzech kratkach.
+
+## Rozwiązanie problemu 1
+
+Zmiany temperatury w czasie zostały przedstawione na wykresach *heatmap1.html* oraz *heatmap2.html* w folderze *plots* w projekcie. Pierwszy z nich przedstawia rozchodzenie się ciepła przy grzejniku ustawionym pod oknami, a drugi - gdy grzejnik znajduje się po przeciwnej stronie domu. Na animacjach dostrzec można, jak w pierwszym przypadku źródła ciepła i zimna równoważą się, natomiast w drugim przypadku występują duże różnice temperatur w pokoju.
+
+Na poniższym wykresie przedstawione zostały wartości funkcji zliczającej ciepło w czasie dla obu przypadków.
+
+```{r, echo=FALSE,out.width="100%", out.height="100%",fig.show='hold',fig.align='center'}
+knitr::include_graphics(c("plots/energy1.png"))
+```
+
+Zdecydowanie więcej ciepła zostało zużyte gdy kaloryfer znajdował się pod oknem. Z dugiej strony, z wykresu odczytać można że przytakim umiejscowieniu grzejnika najpierw ocieplił on pokój, a następnie starał się utrzymywać odpowiednią temperaturę, co jest pożądanym zachowaniem.
+
+Gdy grzejnik nie był pod oknami szybko ocieplał on przestrzeń wokół siebie, sprawiając tym samym że średnia temperatura w pokoju również szybko rosła, stąd dużo mniej zużytego ciepła w tym przypadku. Natomiast sprawiło to, że w pokoju występowały bardzo duże różnice temperatury.
+
+## Rozwiązanie problemu 2
+
+Animowane heatmapy przedstawiające rozkład temperatury w czasie znajdują się w folderze *plots*. Dla temperatur początkowych 0, 8 i 15 są to odpowiednio pliki *problem2_0_closed.html* i *problem2_0.html*, *problem2_8_closed.html* i *problem2_8.html* oraz *problem2_15_closed.html* i *problem2_15.html*, gdzie słowo "closed" w nazwie oznacza, że heatmapa dotyczy przypadku gdy zamykamy kaloryfery przed wyjściem z domu. Poniżej natomiast zostały przedstawione wykresy funkcji zliczającej ciepło.
+
+```{r, echo=FALSE,out.width="100%", out.height="100%",fig.show='hold',fig.align='center'}
+knitr::include_graphics(c("plots/energy2.png"))
+```
+
+Im większa temperatura początkowa, tym większe zużycie energii, co jest zgodne z rzeczywistością. Na powyższym wykresie dobrze widać czas w którym kaloryfery były wyłączone. Po ich ponownym włączeniu zużycie energii rośnie gwałtowniej niż gdy grzały one cały czas.
+
+W przypadku temperatury początkowej 0 i 8, całkowite zużycie energii po 24 godzinach było trochę mniejsze gdy kaloryfery były zamykane, jednak w ostatnim momencie ciepło w największych pokojach rozkładało się gorzej niż gdy pozostały one otwarte. Oznacza to, że jeśli obserwowalibyśmy proces w kolejnych czasach, to zużyte obu sytuacjach mogłyby być porównywalne. Dzieje się tak przy $15^\circ C$ - końcowe rozkłady temperatur są mniej więcej podobne, tak samo jak ilość dostarczonego ciepła.
+
+Ponadto, na heatmpach zauważyć można jak takie same kaloryfery zachowują się w różnych pomieszczeniach. Zastosowane kaloryfery dobrze poradziły sobie w mniejszych pokojach, natomiast dla tych o wymiarach 25 i 18 $m^2$, ich moc była za słaba aby móc w krótkim czasie równomiernie ogrzać pomieszczenie.
+
+## Wnioski
+
+Pierwszy problem dotyczył umiejscowienia kaloryfera w pokoju. Na podstawie obliczonych temperatur oraz ilości dostarczonego ciepła można stwierdzić, że kaloryfer znajdujący się pod oknami jest bardziej optymalnym rozwiązaniem niż ten na przeciwko nich. W pierwszej sytuacji rozłożenie temperatur w pokoju zdecydowanie jest bardziej równomierne, jednak dzieje się to kosztem wyższego zużycia energii. Z drugiej strony, kaloryfer który nie znajdował się pod oknami nie mógł równomiernie ogrzać pokoju, czyli nie spełniał prawidłowo swojej funkcji.
+
+W drugim problemie analizowaliśmy czy warto wyłączać kaloryfery przed wyjściem z domu (na 10 godzin). Na podstawie zużycia energii oraz rozkładu temperatur końcowych możemy stwierdzić, że nie widać znacznej oszczędności przy wyłączaniu kaloryferów przed wyjściem z domu.
